@@ -1,40 +1,22 @@
 from flask import Flask, request, jsonify
 from pymongo import MongoClient
-import json
 
 app = Flask(__name__)
 
-@app.route('/receive', methods=['POST'])
-def receive_data():
-    # Get the data sent from Typeform
-    data = request.get_json()
-    
-    # Process the data (simple echo in this case)
-    # You can also include validation, transformation, etc.
-    response = process_data(data)
+client = MongoClient("mongodb://localhost:27017/")  # Use your MongoDB URI if hosted remotely
+db = client["typeform_db"]  # Replace with your database name
+collection = db["responses"]  # Collection name
 
-    # Store the response in MongoDB
-    store_in_mongodb(response)
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    data = request.json  # Get the data sent by Typeform
+    print(f"New Typeform Response: {data}")
     
-    return jsonify({"status": "success", "data": response}), 200
-
-def process_data(data):
-    # Add your logic to process the Typeform data here
-    processed_data = {
-        'name': data['form_response']['answers'][0]['text'],  # Example: extract a name
-        'email': data['form_response']['answers'][1]['email'], # Example: extract an email
-        # Add other fields as needed
-    }
-    return processed_data
-
-def store_in_mongodb(data):
-    # MongoDB connection
-    client = MongoClient("mongodb://localhost:27017/")
-    db = client['typeform_db']
-    collection = db['form_responses']
+    # Step 2: Insert the data into MongoDB
+    result = collection.insert_one(data)  # Insert data into the collection
     
-    # Insert the processed data into MongoDB
-    collection.insert_one(data)
+    # Respond back to confirm receipt of the webhook
+    return jsonify({'status': 'received', 'inserted_id': str(result.inserted_id)}), 200
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(port=5000)
